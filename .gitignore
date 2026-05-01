@@ -1,0 +1,82 @@
+# =========================
+# 🔐 ENV / SECRETS
+# =========================
+.env
+.env.*
+*.env
+
+# =========================
+# 🐍 PYTHON (BACKEND)
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+
+venv/
+env/
+.venv/
+
+# =========================
+# ⚙️ FASTAPI / LOGS
+# =========================
+*.log
+
+# =========================
+# 🧠 AI / MODEL FILES
+# =========================
+*.pt
+*.bin
+*.onnx
+*.ckpt
+*.model
+*.safetensors
+
+# =========================
+# 🎤 AUDIO FILES (TEMP)
+# =========================
+*.wav
+*.mp3
+*.webm
+
+# =========================
+# ⚛️ REACT (FRONTEND)
+# =========================
+node_modules/
+dist/
+build/
+.vite/
+
+# =========================
+# 📦 PACKAGE LOCKS (optional)
+# =========================
+# Keep if needed for reproducibility
+# package-lock.json
+# yarn.lock
+
+# =========================
+# 💻 OS FILES
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# 🧪 IDE / EDITOR
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# 🐳 DOCKER (if you use later)
+# =========================
+*.tar
+
+# =========================
+# 🧾 MISC
+# =========================
+coverage/
+.cache/
