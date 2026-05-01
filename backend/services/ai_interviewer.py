@@ -3,6 +3,15 @@ import json
 import requests
 from dotenv import load_dotenv
 import os
+import re
+def extract_json(text):
+    try:
+        return json.loads(text)
+    except:
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        return None
 
 load_dotenv()
 API_KEY = os.getenv("MISTRAL_API_KEY") 
@@ -20,11 +29,29 @@ You must:
 5. End with: "Thank you. I have all the information I need. Please wait while I process your application."
 Always respond in the same language as the user.
 """
+EXTRACTION_PROMPT = """
+Extract structured data from the conversation.
 
-EXTRACTION_PROMPT = """From this conversation, extract in JSON only: income (number in INR, 0 if unknown), employment (string), loan_purpose (string), loan_amount (number in INR, 0 if unknown), consent_given (boolean).
+Rules:
+- Convert "1 crore" → 10000000
+- Convert "1 lakh" → 100000
+- Convert "50k" → 50000
+- Income must be monthly
+
 Return ONLY valid JSON.
-"""
+NO explanation.
+NO extra text.
+NO markdown.
 
+Format EXACTLY:
+{
+  "income": number,
+  "employment": string,
+  "loan_purpose": string,
+  "loan_amount": number,
+  "consent_given": boolean
+}
+"""
 
 def call_mistral(messages):
     headers = {
@@ -65,13 +92,19 @@ def extract_data(history):
 
     response = call_mistral(messages)
 
-    try:
-        return json.loads(response["choices"][0]["message"]["content"])
-    except:
-        return {
-            "income": 0,
-            "employment": "",
-            "loan_purpose": "",
-            "loan_amount": 0,
-            "consent_given": False
-        }
+    raw = response["choices"][0]["message"]["content"]
+
+    print("🔍 RAW EXTRACTION:", raw)  # DEBUG
+
+    parsed = extract_json(raw)
+
+    if parsed:
+        return parsed
+
+    return {
+        "income": 0,
+        "employment": "",
+        "loan_purpose": "",
+        "loan_amount": 0,
+        "consent_given": False
+    }
