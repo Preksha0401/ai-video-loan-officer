@@ -50,12 +50,36 @@ export default function useFaceAnalysis(sessionId, videoRef) {
         console.log("📥 Response:", data);
 
         setFaceData(data);
+        // AFTER setFaceData(data)
+
+await fetch("http://localhost:8000/trust/update", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    session_id: sessionId,
+    signal_type: "face_match",
+    value: data.confidence || 0
+  })
+});
+
+// LIVENESS SIGNAL
+if (!data.liveness_passed) {
+  await fetch("http://localhost:8000/trust/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      session_id: sessionId,
+      signal_type: "liveness_failed",
+      value: 1
+    })
+  });
+}
 
       } catch (err) {
         console.error("❌ API error:", err);
       }
 
-    }, 2000);
+    }, 4000);
 
     return () => clearInterval(interval);
   }, [sessionId, videoRef]);

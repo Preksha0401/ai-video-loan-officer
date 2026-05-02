@@ -4,7 +4,7 @@ import VideoPanel from "../components/VideoPanel";
 import TranscriptPanel from "../components/TranscriptPanel";
 import TrustMeter from "../components/TrustMeter";
 import StatusBar from "../components/StatusBar";
-
+import useTrustScore from "../hooks/useTrustScore";
 import useInterview from "../hooks/useInterview";
 import useSTT from "../hooks/useSTT";
 import useFaceAnalysis from "../hooks/useFaceAnalysis";
@@ -12,7 +12,7 @@ import useFaceAnalysis from "../hooks/useFaceAnalysis";
 export default function CallPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-
+  const trust = useTrustScore(sessionId);
   const { messages, handleUserMessage, data } = useInterview(sessionId);
   const { startRecording, stopRecording } = useSTT(handleUserMessage);
 
@@ -37,10 +37,14 @@ export default function CallPage() {
     stableFaceData.current = lastStableFace.current;
   }
 
-  useEffect(() => {
-    const interval = setInterval(() => setSeconds((prev) => prev + 1), 1000);
-    return () => clearInterval(interval);
-  }, []);
+ useEffect(() => {
+  if (trust.score < 50) {
+    document.body.classList.add("border-red-500");
+    setTimeout(() => {
+      document.body.classList.remove("border-red-500");
+    }, 1000);
+  }
+}, [trust.score]);
 
   const formatTime = (sec) => {
     const mins = String(Math.floor(sec / 60)).padStart(2, "0");
@@ -139,7 +143,12 @@ export default function CallPage() {
         <div className="w-[24%] p-4 flex flex-col gap-4">
 
           <div className="bg-[#141f2b] p-4 rounded">
-            <TrustMeter score={70} />
+           <TrustMeter score={trust.score} />
+           <div className="bg-[#141f2b] p-3 rounded text-xs">
+  {trust.explanation.map((e, i) => (
+    <div key={i}>{e}</div>
+  ))}
+</div>
           </div>
 
           {/* INTERVIEW DATA */}

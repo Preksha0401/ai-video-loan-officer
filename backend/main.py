@@ -29,3 +29,5 @@ app.include_router(interview.router)
 from routers import face
 
 app.include_router(face.router)
+from routers import trust
+app.include_router(trust.router)
