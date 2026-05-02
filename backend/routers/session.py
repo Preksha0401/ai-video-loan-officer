@@ -8,6 +8,13 @@ router = APIRouter(prefix="/session", tags=["session"])
 # In-memory store (replace with DB in production)
 sessions: dict = {}
 
+# In-memory store
+sessions: dict = {}
+
+def update_session_data(session_id, extracted_data):
+    if session_id in sessions:
+        sessions[session_id].update(extracted_data)
+
 
 class SessionCreateRequest(BaseModel):
     customer_name: str

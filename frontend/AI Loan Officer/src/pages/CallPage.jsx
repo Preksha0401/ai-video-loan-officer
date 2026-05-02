@@ -54,7 +54,26 @@ export default function CallPage() {
 
   const handleStart = () => { startRecording(); setIsRecording(true); };
   const handleStop = () => { stopRecording(); setIsRecording(false); };
-  const handleEndCall = () => navigate(`/decision/${sessionId}`);
+  const handleEndCall = async () => {
+  try {
+    const res = await fetch("http://localhost:8000/decision/evaluate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ session_id: sessionId }),
+    });
+
+    const result = await res.json();
+
+    // navigate with result
+    navigate(`/decision/${sessionId}`, { state: result });
+
+  } catch (err) {
+    console.error("Decision error:", err);
+    alert("Failed to evaluate loan decision");
+  }
+};
 
   return (
     <div className="h-screen flex flex-col bg-[#0f1923] text-white overflow-hidden">
@@ -76,12 +95,29 @@ export default function CallPage() {
           ID: {sessionId?.slice(0, 8)}…
         </div>
 
-        <button
-          onClick={() => setShowEndConfirm(true)}
-          className="bg-red-600 px-4 py-1.5 rounded"
-        >
-          End Call
-        </button>
+        {!showEndConfirm ? (
+  <button
+    onClick={() => setShowEndConfirm(true)}
+    className="bg-red-600 px-4 py-1.5 rounded"
+  >
+    End Call
+  </button>
+) : (
+  <div className="flex gap-2">
+    <button
+      onClick={handleEndCall}
+      className="bg-red-600 px-3 py-1 rounded"
+    >
+      Yes End
+    </button>
+    <button
+      onClick={() => setShowEndConfirm(false)}
+      className="bg-gray-600 px-3 py-1 rounded"
+    >
+      Cancel
+    </button>
+  </div>
+)}
       </div>
 
       <StatusBar />
