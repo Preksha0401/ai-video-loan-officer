@@ -6,71 +6,135 @@ export default function useInterview(sessionId) {
   const [messages, setMessages] = useState([]);
   const [data, setData] = useState({});
 
-  // keep previous income across renders
   const prevIncomeRef = useRef(null);
-
-  const postSignal = async (signal_type, value) => {
-    try {
-      await fetch("http://localhost:8000/trust/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: sessionId,
-          signal_type,
-          value,
-        }),
-      });
-    } catch (e) {
-      console.warn("Trust update failed:", e);
-    }
-  };
+  const prevDataRef = useRef({});
 
   const handleUserMessage = async (text) => {
-    console.log("👤 User said:", text);
+    console.log("👤 User:", text);
 
-    const res = await sendMessage(sessionId, text, history);
-    console.log("🤖 AI response:", res);
+    const start = Date.now();
 
-    // 1) Update UI
-    setMessages((prev) => [
-      ...prev,
-      { speaker: "User", text },
-      { speaker: "AI", text: res.ai_reply },
-    ]);
+    try {
+      const res = await sendMessage(sessionId, text, history);
 
-    const newHistory = [
-      ...history,
-      { role: "user", content: text },
-      { role: "assistant", content: res.ai_reply },
-    ];
-    setHistory(newHistory);
+      const latency = (Date.now() - start) / 1000;
 
-    const newData = res.extracted_data || {};
-    setData(newData);
+      console.log("🤖 AI:", res);
+      console.log("⏱ Latency:", latency);
 
-    // 2) 🔥 Send TRUST signals
+      const newData = res.extracted_data || {};
 
-    // (a) Hesitation (simulate response latency)
-    const latency = Math.random() * 7;
-    await postSignal("hesitation", latency);
+      // -----------------------------
+      // 🧠 UPDATE UI
+      // -----------------------------
+      setMessages((prev) => [
+        ...prev,
+        { speaker: "User", text },
+        { speaker: "AI", text: res.ai_reply },
+      ]);
 
-    // (b) Income inconsistency
-    const prevIncome = prevIncomeRef.current;
-    const currIncome = newData.income;
+      const updatedHistory = [
+        ...history,
+        { role: "user", content: text },
+        { role: "assistant", content: res.ai_reply },
+      ];
 
-    if (prevIncome && currIncome) {
-      const change = Math.abs(currIncome - prevIncome) / prevIncome;
+      setHistory(updatedHistory);
+      setData(newData);
 
-      if (change > 0.3) {
-        await postSignal("income_inconsistency", change);
-      } else {
-        await postSignal("consistent_answers", 1);
+      // -----------------------------
+      // 🟢 POSITIVE SIGNAL
+      // -----------------------------
+      const prevData = prevDataRef.current;
+
+      let isGoodAnswer = false;
+
+      // New field extracted
+      if (
+        (!prevData.income && newData.income) ||
+        (!prevData.employment && newData.employment) ||
+        (!prevData.loan_amount && newData.loan_amount) ||
+        (!prevData.loan_purpose && newData.loan_purpose)
+      ) {
+        isGoodAnswer = true;
       }
-    }
 
-    // update ref for next turn
-    if (currIncome) {
-      prevIncomeRef.current = currIncome;
+      // Meaningful answer
+      if (text && text.length > 5) {
+        isGoodAnswer = true;
+      }
+
+      if (isGoodAnswer) {
+        console.log("✅ Consistent answer detected");
+
+        await fetch("http://localhost:8000/trust/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: sessionId,
+            signal_type: "consistent_answers",
+            value: 1,
+          }),
+        });
+      }
+
+      // -----------------------------
+      // 🔵 HESITATION SIGNAL
+      // -----------------------------
+      if (latency > 5) {
+        console.log("⚠ Hesitation detected");
+
+        await fetch("http://localhost:8000/trust/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: sessionId,
+            signal_type: "hesitation",
+            value: latency,
+          }),
+        });
+      }
+
+      // -----------------------------
+      // 🟡 INCOME INCONSISTENCY
+      // -----------------------------
+      const currentIncome = newData?.income;
+
+      if (
+        currentIncome &&
+        prevIncomeRef.current &&
+        prevIncomeRef.current > 0
+      ) {
+        const change =
+          Math.abs(currentIncome - prevIncomeRef.current) /
+          prevIncomeRef.current;
+
+        if (change > 0.3) {
+          console.log("⚠ Income inconsistency detected");
+
+          await fetch("http://localhost:8000/trust/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              session_id: sessionId,
+              signal_type: "income_inconsistency",
+              value: change,
+            }),
+          });
+        }
+      }
+
+      if (currentIncome) {
+        prevIncomeRef.current = currentIncome;
+      }
+
+      // -----------------------------
+      // SAVE FOR NEXT STEP
+      // -----------------------------
+      prevDataRef.current = newData;
+
+    } catch (err) {
+      console.error("❌ Interview error:", err);
     }
   };
 

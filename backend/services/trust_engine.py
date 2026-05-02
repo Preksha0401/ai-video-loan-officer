@@ -16,16 +16,16 @@ class TrustEngine:
         impact = 0
 
         if signal_type == "face_match":
-            if value < 0.7:
-                impact = -40
-
+            if value < 0.5:
+                impact = -15   # 🔥 reduced
         elif signal_type == "liveness_failed":
-            impact = -30
+            impact = -15
 
         elif signal_type == "hesitation":
             if value > 5:
-                impact = -10
-
+                impact = -5
+        elif signal_type == "consistent_answers":
+            impact = +5
         elif signal_type == "income_inconsistency":
             impact = -20
 
@@ -38,7 +38,7 @@ class TrustEngine:
         elif signal_type == "consistent_answers":
             impact = +5
 
-        self.score = max(0, min(100, self.score + impact))
+        self.score = max(30, min(100, self.score + impact))
 
         self._log(signal_type, impact)
 
@@ -54,8 +54,8 @@ class TrustEngine:
         return explanations
 
     def get_band(self):
-        if self.score >= 70:
-            return "APPROVE"
-        elif self.score >= 50:
+        if self.score < 40:
+            return "REJECT"
+        elif self.score < 60:
             return "CONDITIONAL"
-        return "REJECT"
+        return "APPROVED"

@@ -69,7 +69,7 @@ export default function DecisionPage() {
             {/* RESULT */}
             <div className="bg-green-50 border rounded-2xl p-6 mb-6">
               <div className="text-xs font-semibold text-green-600">
-                {result?.decision || "UNKNOWN"}
+               {result?.decision || "PROCESSING"}
               </div>
 
               <h1 className="text-2xl font-bold text-gray-900">

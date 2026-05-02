@@ -52,8 +52,15 @@ useEffect(() => {
 
   const handleStart = () => { startRecording(); setIsRecording(true); };
   const handleStop = () => { stopRecording(); setIsRecording(false); };
-  const handleEndCall = async () => {
+ const handleEndCall = async () => {
   try {
+    // ✅ 1. Fetch latest trust score FIRST
+    const trustRes = await fetch(`http://localhost:8000/trust/${sessionId}`);
+    const trustData = await trustRes.json();
+
+    console.log("📊 Final Trust Before Decision:", trustData);
+
+    // ✅ 2. Send decision request
     const res = await fetch("http://localhost:8000/decision/evaluate", {
       method: "POST",
       headers: {
@@ -64,12 +71,10 @@ useEffect(() => {
 
     const result = await res.json();
 
-    // navigate with result
     navigate(`/decision/${sessionId}`, { state: result });
 
   } catch (err) {
     console.error("Decision error:", err);
-    alert("Failed to evaluate loan decision");
   }
 };
 
@@ -178,9 +183,9 @@ useEffect(() => {
           <div className="bg-[#141f2b] p-4 rounded">
            <TrustMeter score={trust.score} />
            <div className="bg-[#141f2b] p-3 rounded text-xs">
-  {trust?.explanation.map((e, i) => (
-    <div key={i}>{e}</div>
-  ))}
+  {trust?.explanation?.map((e, i) => (
+  <div key={i}>{e}</div>
+))}
 </div>
           </div>
 

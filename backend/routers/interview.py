@@ -1,11 +1,13 @@
 # Updated code
 from fastapi import APIRouter
 from services.ai_interviewer import generate_ai_reply, extract_data
+from routers.session import update_session_data
 
 router = APIRouter()
 
 @router.post("/interview/respond")
 def respond(data: dict):
+    session_id = data["session_id"]
     user_message = data["user_message"]
     history = data.get("conversation_history", [])
 
@@ -24,6 +26,8 @@ def respond(data: dict):
     ]
 
     extracted_after = extract_data(updated_history)
+    update_session_data(session_id, extracted_after)
+
     print("📊 Extracted AFTER:", extracted_after)
     print("========================\n")
 
