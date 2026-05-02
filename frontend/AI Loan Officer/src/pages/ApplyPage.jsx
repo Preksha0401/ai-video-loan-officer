@@ -42,7 +42,6 @@ export default function ApplyPage() {
       setSubmitted(true);
 
       // Redirect after brief success flash
-      setTimeout(() => navigate(`/call/${data.session_id}`), 1800);
     } catch (err) {
       setErrors({ global: "Something went wrong. Please try again." });
       setLoading(false);
@@ -101,7 +100,9 @@ export default function ApplyPage() {
                 </div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-2">Application Submitted!</h2>
                 <p className="text-gray-500 text-sm">Verification link sent to <strong>{form.email}</strong></p>
-                <p className="text-gray-400 text-xs mt-3">Redirecting you to the interview room…</p>
+                <p className="text-gray-400 text-xs mt-3">
+  Please check your email and click the link to start your interview.
+</p>
                 <div className="mt-4 flex justify-center">
                   <div className="flex gap-1">
                     {[0, 1, 2].map((i) => (
