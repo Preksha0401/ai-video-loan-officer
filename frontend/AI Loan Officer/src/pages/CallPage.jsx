@@ -27,15 +27,13 @@ export default function CallPage() {
   const { faceData } = useFaceAnalysis(sessionId, videoRef);
 
   // 🧠 Smooth face detection (no flicker)
-  const lastStableFace = useRef(null);
-  const stableFaceData = useRef(null);
+const [stableFaceData, setStableFaceData] = useState(null);
 
+useEffect(() => {
   if (faceData?.face_detected) {
-    lastStableFace.current = faceData;
-    stableFaceData.current = faceData;
-  } else if (lastStableFace.current) {
-    stableFaceData.current = lastStableFace.current;
+    setStableFaceData(faceData);
   }
+}, [faceData]);
 
  useEffect(() => {
   if (trust.score < 50) {
@@ -130,15 +128,14 @@ export default function CallPage() {
           <div className="relative flex-1 rounded-xl overflow-hidden">
 
             <VideoPanel
-              videoRef={videoRef}
-              faceData={stableFaceData.current}
-            />
-
+  videoRef={videoRef}
+  faceData={stableFaceData}
+/>
             {/* FACE STATUS */}
             <div className="absolute bottom-3 left-3 bg-black/70 px-3 py-1 rounded text-xs">
-              Face: {stableFaceData.current?.face_detected ? "✅" : "❌"}
+              Face: {stableFaceData?.face_detected ? "✅" : "❌"}
               <br />
-              Emotion: {stableFaceData.current?.dominant_emotion || "—"}
+              Emotion: {stableFaceData?.dominant_emotion || "—"}
             </div>
 
             {isRecording && (
@@ -181,7 +178,7 @@ export default function CallPage() {
           <div className="bg-[#141f2b] p-4 rounded">
            <TrustMeter score={trust.score} />
            <div className="bg-[#141f2b] p-3 rounded text-xs">
-  {trust.explanation.map((e, i) => (
+  {trust?.explanation.map((e, i) => (
     <div key={i}>{e}</div>
   ))}
 </div>
@@ -197,7 +194,7 @@ export default function CallPage() {
 
           {/* FACE DEBUG */}
           <pre className="text-xs bg-[#141f2b] p-3 rounded overflow-auto max-h-40">
-            {JSON.stringify(stableFaceData.current, null, 2)}
+            {JSON.stringify(stableFaceData, null, 2)}
           </pre>
 
         </div>
