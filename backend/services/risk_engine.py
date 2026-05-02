@@ -20,7 +20,7 @@ class RiskEngine:
         min_income = min_income_map.get(loan_type, 20000)
 
         # ❌ REJECTION CONDITIONS
-        if trust_score < 50:
+        if trust_score < 30:
             return {
                 "decision": "REJECTED",
                 "risk_band": "HIGH",
@@ -42,7 +42,7 @@ class RiskEngine:
             }
 
         # ⚠ CONDITIONAL
-        if 50 <= trust_score < 70:
+        if 30 <= trust_score < 50:
             return {
                 "decision": "CONDITIONAL",
                 "risk_band": "MEDIUM",

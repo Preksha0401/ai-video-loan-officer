@@ -4,7 +4,9 @@ from routers.session import sessions
 
 router = APIRouter()
 risk_engine = RiskEngine()
+from services.offer_engine import OfferEngine
 
+offer_engine = OfferEngine()
 @router.post("/decision/evaluate")
 def evaluate(data: dict):
 
@@ -30,8 +32,14 @@ def evaluate(data: dict):
     print("=========================\n")
     result = risk_engine.evaluate(session, trust_score)
 
+    offer = {}
+
+    if result["decision"] == "APPROVED":
+        offer = offer_engine.generate_offer(session, trust_score)
+
     return {
         **result,
         "trust_score": trust_score,
-        "session_data": session
+        "session_data": session,
+        "offer": offer   # 🔥 ADD THIS
     }
