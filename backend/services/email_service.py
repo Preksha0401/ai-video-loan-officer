@@ -22,24 +22,21 @@ async def send_email(
     customer_name: str = "Applicant",
     loan_type: str = "Loan",
 ):
-    body = f"""Hello {customer_name},
+    body = f"""Hi {customer_name},
 
-Thank you for applying for a {loan_type} loan through TenzorX AI Loan Officer.
+We received your application for a {loan_type} loan.
 
-Click the secure link below to begin your AI video interview:
-
+To continue, please start your short verification interview here:
 {session_link}
 
-This link is unique to your application and valid for 24 hours.
+This helps us process your request faster.
 
-If you did not request this, please ignore this email.
-
-Regards,
-TenzorX AI Loan Officer
+Thanks,
+TenzorX Team
 """
 
     message = MessageSchema(
-        subject=f"Your {loan_type} Loan Verification Link — TenzorX",
+        subject=f"Continue your loan application",
         recipients=[recipient_email],
         body=body,
         subtype="plain",

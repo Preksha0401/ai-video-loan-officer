@@ -7,6 +7,7 @@ export default function ApplyPage() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState({ name: "", email: "", loanType: "Personal" });
+  const [idFile, setIdFile] = useState(null); // ✅ NEW
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -19,6 +20,14 @@ export default function ApplyPage() {
     return e;
   };
 
+  const toBase64 = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+    });
+
   const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
@@ -26,6 +35,8 @@ export default function ApplyPage() {
     setLoading(true);
 
     try {
+      const id_base64 = idFile ? await toBase64(idFile) : null;
+
       const res = await fetch("http://localhost:8000/session/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -33,6 +44,7 @@ export default function ApplyPage() {
           customer_name: form.name,
           loan_type: form.loanType,
           email: form.email,
+          id_image: id_base64, // ✅ NEW FIELD
         }),
       });
 
@@ -41,8 +53,9 @@ export default function ApplyPage() {
 
       setSubmitted(true);
 
-      // Redirect after brief success flash
+      // ✅ keep original behavior but add redirect
       setTimeout(() => navigate(`/call/${data.session_id}`), 1800);
+
     } catch (err) {
       setErrors({ global: "Something went wrong. Please try again." });
       setLoading(false);
@@ -101,7 +114,9 @@ export default function ApplyPage() {
                 </div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-2">Application Submitted!</h2>
                 <p className="text-gray-500 text-sm">Verification link sent to <strong>{form.email}</strong></p>
-                <p className="text-gray-400 text-xs mt-3">Redirecting you to the interview room…</p>
+                <p className="text-gray-400 text-xs mt-3">
+                  Please check your email and click the link to start your interview.
+                </p>
                 <div className="mt-4 flex justify-center">
                   <div className="flex gap-1">
                     {[0, 1, 2].map((i) => (
@@ -112,6 +127,7 @@ export default function ApplyPage() {
               </div>
             ) : (
               <div className="px-7 py-6 space-y-5">
+
                 {errors.global && (
                   <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">
                     {errors.global}
@@ -161,31 +177,35 @@ export default function ApplyPage() {
                   </div>
                 </div>
 
+                {/* ✅ ID UPLOAD (ONLY ADDITION) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Upload Aadhaar / PAN
+                  </label>
+
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setIdFile(e.target.files[0])}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                  />
+
+                  {idFile && (
+                    <p className="text-green-600 text-xs mt-1">
+                      ✅ {idFile.name} uploaded
+                    </p>
+                  )}
+                </div>
+
                 {/* SUBMIT */}
                 <button
                   onClick={handleSubmit}
                   disabled={loading}
                   className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white py-3 rounded-xl font-semibold text-sm transition-all shadow-md shadow-blue-100 mt-2 flex items-center justify-center gap-2"
                 >
-                  {loading ? (
-                    <>
-                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                      </svg>
-                      Sending Verification Link…
-                    </>
-                  ) : (
-                    <>Start Verification →</>
-                  )}
+                  {loading ? "Sending Verification Link…" : "Start Verification →"}
                 </button>
 
-                <div className="flex items-center gap-2 justify-center pt-1">
-                  <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                  <span className="text-xs text-gray-400">256-bit encrypted · RBI compliant</span>
-                </div>
               </div>
             )}
           </div>

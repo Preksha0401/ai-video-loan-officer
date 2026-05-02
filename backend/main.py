@@ -23,6 +23,9 @@ app.add_middleware(
 app.include_router(session.router)
 app.include_router(transcript.router)
 app.include_router(decision.router)
-# from routers import interview
+from routers import interview
 
-# app.include_router(interview.router)
+app.include_router(interview.router)
+from routers import face
+
+app.include_router(face.router)

@@ -13,7 +13,7 @@ class SessionCreateRequest(BaseModel):
     customer_name: str
     loan_type: str
     email: str
-
+    id_image: str | None = None   # 🔥 NEW
 
 class SessionData(BaseModel):
     session_id: str
@@ -21,6 +21,7 @@ class SessionData(BaseModel):
     loan_type: str
     email: str
     session_link: str
+    id_image: str | None = None   # 🔥 NEW
     status: str = "pending"
 
 
@@ -30,12 +31,13 @@ async def start_session(body: SessionCreateRequest):
     session_link = f"http://localhost:5173/call/{session_id}"
 
     session = SessionData(
-        session_id=session_id,
-        customer_name=body.customer_name,
-        loan_type=body.loan_type,
-        email=body.email,
-        session_link=session_link,
-    )
+    session_id=session_id,
+    customer_name=body.customer_name,
+    loan_type=body.loan_type,
+    email=body.email,
+    session_link=session_link,
+    id_image=body.id_image,   # 🔥 STORE IMAGE
+)
 
     sessions[session_id] = session.dict()
 

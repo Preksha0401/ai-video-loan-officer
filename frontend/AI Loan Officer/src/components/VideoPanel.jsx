@@ -1,31 +1,98 @@
 import { useEffect, useRef } from "react";
 
-export default function VideoPanel() {
-  const videoRef = useRef(null);
+export default function VideoPanel({ faceData, videoRef }) {
+  const canvasRef = useRef(null);
 
+  // 🎥 CAMERA SETUP
   useEffect(() => {
+    console.log("📸 Initializing camera...");
+
     navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => {
-        videoRef.current.srcObject = stream;
-      });
-  }, []);
+      .then((stream) => {
+        console.log("✅ Camera stream received");
+
+        const video = videoRef.current;
+        video.srcObject = stream;
+
+        video.onloadedmetadata = () => {
+          console.log("📐 Video metadata loaded");
+          console.log("➡️ videoWidth:", video.videoWidth);
+          console.log("➡️ videoHeight:", video.videoHeight);
+          video.play();
+        };
+      })
+      .catch((err) => console.error("❌ Camera error:", err));
+
+  }, [videoRef]);
+
+  // 🎯 DRAW FACE BOX
+  useEffect(() => {
+    console.log("🧠 faceData:", faceData);
+
+    if (!faceData || !faceData.face_detected) {
+      console.warn("🚫 No face detected");
+      return;
+    }
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (!video || !canvas) {
+      console.warn("⚠️ Missing video/canvas");
+      return;
+    }
+
+    if (!video.videoWidth) {
+      console.warn("⏳ Video not ready");
+      return;
+    }
+
+    const ctx = canvas.getContext("2d");
+
+    // Match canvas to display size
+    canvas.width = video.clientWidth;
+    canvas.height = video.clientHeight;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const { x, y, w, h } = faceData.face_box;
+
+    const scaleX = video.clientWidth / video.videoWidth;
+    const scaleY = video.clientHeight / video.videoHeight;
+
+    const box = {
+      x: x * scaleX,
+      y: y * scaleY,
+      w: w * scaleX,
+      h: h * scaleY,
+    };
+
+    console.log("📦 Drawing box:", box);
+
+    ctx.strokeStyle = "lime";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(box.x, box.y, box.w, box.h);
+
+  }, [faceData, videoRef]);
 
   return (
-    <div className="relative bg-black rounded-lg overflow-hidden">
-      
-      <video ref={videoRef} autoPlay className="w-full h-full" />
+    <div className="relative w-full h-full">
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        className="w-full h-full object-cover rounded"
+      />
 
-      {/* LIVE badge */}
-      <div className="absolute top-2 right-2 flex items-center gap-1 text-red-500">
-        <span className="animate-ping w-2 h-2 bg-red-500 rounded-full"></span>
-        LIVE
+      <canvas
+        ref={canvasRef}
+        className="absolute top-0 left-0 w-full h-full pointer-events-none"
+      />
+
+      {/* STATUS */}
+      <div className="absolute top-3 left-3 bg-black/70 px-3 py-1 text-sm rounded">
+        Face: {faceData?.face_detected ? "✅" : "❌"}
       </div>
-
-      {/* Fake Face Box */}
-      <div className="absolute top-20 left-20 w-40 h-40 border-2 border-green-400">
-        <p className="text-green-400 text-sm mt-44">Face: 94%</p>
-      </div>
-
     </div>
   );
 }

@@ -6,3 +6,6 @@ requests
 python-dotenv
 fastapi-mail
 python-dotenv
+opencv-python 
+deepface
+tf-keras
