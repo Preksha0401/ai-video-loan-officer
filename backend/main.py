@@ -31,3 +31,5 @@ from routers import face
 app.include_router(face.router)
 from routers import trust
 app.include_router(trust.router)
+from routers import offer
+app.include_router(offer.router)

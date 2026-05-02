@@ -5,11 +5,40 @@ class RiskEngine:
         employment = session_data.get("employment", "")
         loan_type = session_data.get("loan_type", "Personal")
 
-        credit_score = 720  # simulated (as per your spec)
+        credit_score = 720  # simulated
 
         reasons = []
+        explanation = []
 
-        # ✅ Minimum income rules
+        # -------------------------
+        # 💰 INCOME ANALYSIS
+        # -------------------------
+        if income >= 50000:
+            explanation.append(f"Strong income ₹{income}/month supports repayment capacity")
+        else:
+            explanation.append(f"Moderate income ₹{income}/month — risk slightly higher")
+
+        # -------------------------
+        # 👔 EMPLOYMENT
+        # -------------------------
+        if employment in ["salaried", "full-time"]:
+            explanation.append("Stable employment detected")
+        else:
+            explanation.append("Non-stable employment — higher risk")
+
+        # -------------------------
+        # 📊 TRUST SCORE
+        # -------------------------
+        if trust_score >= 80:
+            explanation.append("High behavioral trust score — low fraud risk")
+        elif trust_score >= 60:
+            explanation.append("Moderate trust score — minor inconsistencies detected")
+        else:
+            explanation.append("Low trust score — risk signals detected")
+
+        # -------------------------
+        # 📉 POLICY CHECK
+        # -------------------------
         min_income_map = {
             "Personal": 20000,
             "Business": 25000,
@@ -19,37 +48,33 @@ class RiskEngine:
 
         min_income = min_income_map.get(loan_type, 20000)
 
-        # ❌ REJECTION CONDITIONS
-        if trust_score < 30:
-            return {
-                "decision": "REJECTED",
-                "risk_band": "HIGH",
-                "reasons": ["Low trust score"],
-            }
-
         if income < min_income:
             return {
                 "decision": "REJECTED",
                 "risk_band": "HIGH",
                 "reasons": [f"Income below ₹{min_income} requirement"],
+                "explanation": explanation
             }
 
-        if credit_score < 600:
+        # -------------------------
+        # 🎯 FINAL DECISION
+        # -------------------------
+        if trust_score < 30:
             return {
                 "decision": "REJECTED",
                 "risk_band": "HIGH",
-                "reasons": ["Low credit score"],
+                "reasons": ["Low trust score"],
+                "explanation": explanation
             }
 
-        # ⚠ CONDITIONAL
         if 30 <= trust_score < 50:
             return {
                 "decision": "CONDITIONAL",
                 "risk_band": "MEDIUM",
                 "reasons": ["Moderate trust score"],
+                "explanation": explanation
             }
 
-        # ✅ APPROVED
         return {
             "decision": "APPROVED",
             "risk_band": "LOW",
@@ -58,4 +83,5 @@ class RiskEngine:
                 "Income meets eligibility",
                 "Good credit profile"
             ],
+            "explanation": explanation
         }

@@ -110,6 +110,7 @@ def analyze_face(session_id, image_base64):
     img = decode_base64_image(image_base64)
 
     if img is None:
+        
         return {
             "estimated_age": 30,
             "dominant_emotion": "neutral",
