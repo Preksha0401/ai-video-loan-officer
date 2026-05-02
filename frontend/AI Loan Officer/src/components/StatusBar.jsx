@@ -39,55 +39,76 @@ export default function StatusBar({ faceDetected, livenessOk, isRecording }) {
     <div
       className="flex items-center justify-center gap-8 px-6 py-2 shrink-0"
       style={{
-        background: "rgba(52, 103, 222, 0.95)",
-        borderBottom: "1px solid rgba(0, 0, 0, 0.06)",
+        background: "linear-gradient(90deg, #1E3A8A, #2563EB)",
+        borderBottom: "1px solid rgba(255,255,255,0.1)",
         backdropFilter: "blur(4px)",
       }}
     >
       {/* Left label */}
       <div className="flex items-center gap-1.5 mr-2">
-        <div className="w-1 h-4 rounded-full" style={{ background: "linear-gradient(180deg, #2563EB, #60A5FA)" }} />
-        <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "#4B5563", letterSpacing: "0.12em" }}>
+        <div
+          className="w-1 h-4 rounded-full"
+          style={{ background: "linear-gradient(180deg, #60A5FA, #93C5FD)" }}
+        />
+        <span
+          className="text-xs font-bold tracking-widest uppercase"
+          style={{ color: "#E5E7EB", letterSpacing: "0.12em" }}
+        >
           System Status
         </span>
       </div>
 
-      <div className="h-4 w-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+      <div className="h-4 w-px" style={{ background: "rgba(255,255,255,0.15)" }} />
 
       {items.map((item, idx) => (
-        <div key={item.label} className="flex items-center gap-2 group">
+        <div key={item.label} className="flex items-center gap-2">
           {/* Indicator dot */}
           <div className="relative flex items-center justify-center">
             <div
               className="w-1.5 h-1.5 rounded-full transition-all duration-500"
               style={{
-                background: item.ok ? "#22C55E" : "#374151",
+                background: item.ok ? "#22C55E" : "#EF4444",
                 boxShadow: item.ok
-                  ? "0 0 0 2px rgba(34,197,94,0.15), 0 0 6px rgba(34,197,94,0.4)"
-                  : "none",
+                  ? "0 0 0 2px rgba(34,197,94,0.2), 0 0 6px rgba(34,197,94,0.5)"
+                  : "0 0 4px rgba(239,68,68,0.5)",
               }}
             />
             {item.ok && (
               <div
                 className="absolute w-3 h-3 rounded-full animate-ping"
-                style={{ background: "rgba(34,197,94,0.15)", animationDuration: "2s" }}
+                style={{
+                  background: "rgba(34,197,94,0.2)",
+                  animationDuration: "2s",
+                }}
               />
             )}
           </div>
 
           {/* Icon */}
-          <span style={{ color: item.ok ? "#60A5FA" : "#4B5563" }}>{item.icon}</span>
+          <span style={{ color: item.ok ? "#93C5FD" : "#9CA3AF" }}>
+            {item.icon}
+          </span>
 
           {/* Label + value */}
           <div className="flex items-center gap-1">
-            <span className="text-xs font-medium" style={{ color: "#6B7280" }}>
+            <span
+              className="text-xs font-medium"
+              style={{ color: "#9CA3AF" }}
+            >
               {item.label}
             </span>
-            <span className="text-xs" style={{ color: "#374151" }}>·</span>
+
+            <span
+              className="text-xs"
+              style={{ color: "#9CA3AF" }}
+            >
+              ·
+            </span>
+
             <span
               className="text-xs font-semibold"
               style={{
-                color: item.ok ? "#4ADE80" : "#4B5563",
+                color: item.ok ? "#4ADE80" : "#F87171",
                 fontVariantNumeric: "tabular-nums",
               }}
             >
@@ -96,18 +117,36 @@ export default function StatusBar({ faceDetected, livenessOk, isRecording }) {
           </div>
 
           {idx < items.length - 1 && (
-            <div className="ml-4 h-3 w-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+            <div
+              className="ml-4 h-3 w-px"
+              style={{ background: "rgba(255,255,255,0.15)" }}
+            />
           )}
         </div>
       ))}
 
       {/* AI Active chip */}
-      <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-        style={{ background: "rgba(37,99,235,0.12)", border: "1px solid rgba(37,99,235,0.2)" }}>
-        <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24" style={{ color: "#60A5FA" }}>
+      <div
+        className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+        style={{
+          background: "rgba(96,165,250,0.15)",
+          border: "1px solid rgba(96,165,250,0.3)",
+        }}
+      >
+        <svg
+          className="w-2.5 h-2.5"
+          fill="currentColor"
+          viewBox="0 0 24 24"
+          style={{ color: "#93C5FD" }}
+        >
           <path d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
-        <span className="text-xs font-semibold" style={{ color: "#60A5FA" }}>AI Active</span>
+        <span
+          className="text-xs font-semibold"
+          style={{ color: "#93C5FD" }}
+        >
+          AI Active
+        </span>
       </div>
     </div>
   );

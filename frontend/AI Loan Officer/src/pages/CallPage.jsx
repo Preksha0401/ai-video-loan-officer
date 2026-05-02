@@ -8,7 +8,7 @@ import useTrustScore from "../hooks/useTrustScore";
 import useInterview from "../hooks/useInterview";
 import useSTT from "../hooks/useSTT";
 import useFaceAnalysis from "../hooks/useFaceAnalysis";
-
+import {useCallback } from "react";
 /* ─── small utility: flash highlight on data change ─── */
 function useFlashOnChange(value) {
   const [flash, setFlash] = useState(false);
@@ -70,6 +70,61 @@ function ModuleHeader({ icon, title, right }) {
   );
 }
 
+/* ─── Animated Robot Avatar ─── */
+function RobotAvatar({ isSpeaking }) {
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: 44, height: 44 }}>
+      {/* Pulse ring when speaking */}
+      {isSpeaking && (
+        <span
+          className="absolute inset-0 rounded-full animate-ping"
+          style={{
+            background: "rgba(96,165,250,0.25)",
+            animationDuration: "1.2s",
+          }}
+        />
+      )}
+      <div
+        className="w-10 h-10 rounded-full flex items-center justify-center relative z-10"
+        style={{
+          background: "linear-gradient(135deg, #1D4ED8, #2563EB)",
+          boxShadow: isSpeaking
+            ? "0 0 0 3px rgba(96,165,250,0.4), 0 2px 10px rgba(37,99,235,0.5)"
+            : "0 2px 10px rgba(37,99,235,0.35)",
+          transition: "box-shadow 0.3s ease",
+        }}
+      >
+        {/* Robot SVG face */}
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          {/* Head */}
+          <rect x="4" y="6" width="16" height="13" rx="3" fill="white" fillOpacity="0.9" />
+          {/* Antenna */}
+          <line x1="12" y1="6" x2="12" y2="3" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="12" cy="2.5" r="1.2" fill="white" />
+          {/* Eyes */}
+          <rect x="7.5" y="10" width="3" height="3" rx="1" fill="#2563EB" />
+          <rect x="13.5" y="10" width="3" height="3" rx="1" fill="#2563EB" />
+          {/* Eye glow when speaking */}
+          {isSpeaking && (
+            <>
+              <rect x="7.5" y="10" width="3" height="3" rx="1" fill="#60A5FA" fillOpacity="0.8" />
+              <rect x="13.5" y="10" width="3" height="3" rx="1" fill="#60A5FA" fillOpacity="0.8" />
+            </>
+          )}
+          {/* Mouth */}
+          {isSpeaking ? (
+            // Open mouth when speaking
+            <rect x="8.5" y="14.5" width="7" height="2.5" rx="1.2" fill="#2563EB" />
+          ) : (
+            // Smile when idle
+            <path d="M8.5 15.5 Q12 17.5 15.5 15.5" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+          )}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 export default function CallPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
@@ -80,11 +135,14 @@ export default function CallPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const videoRef = useRef(null);
-  const missedFrames = useRef(0);
+  const missedFrames = useRef(null);
+  const lastSpokenRef = useRef("");
   const { faceData } = useFaceAnalysis(sessionId, videoRef);
   const [stableFaceData, setStableFaceData] = useState(null);
+
   useEffect(() => {
     if (faceData?.face_detected) {
       missedFrames.current = 0;
@@ -95,6 +153,167 @@ export default function CallPage() {
     }
   }, [faceData]);
 
+// ── Voices ref: populated once voiceschanged fires ──
+const voicesRef = useRef([]);
+useEffect(() => {
+  if (!("speechSynthesis" in window)) return;
+  const load = () => { voicesRef.current = window.speechSynthesis.getVoices(); };
+  load(); // populate immediately (works in Firefox)
+  window.speechSynthesis.addEventListener("voiceschanged", load);
+  return () => window.speechSynthesis.removeEventListener("voiceschanged", load);
+}, []);
+
+// ── speak() helper — call from a user-gesture handler ──
+// ONLY showing the changed parts — everything else stays SAME
+
+// ── speak() helper — FIXED ──
+const speak = useCallback((text) => {
+  console.log("🗣 speak() called with:", text);
+
+  if (!("speechSynthesis" in window)) {
+    console.log("❌ speechSynthesis NOT supported");
+    return;
+  }
+
+  console.log("🎤 voices available:", voicesRef.current);
+
+  window.speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+
+  utterance.rate = 1.0;
+  utterance.pitch = 1.05;
+  utterance.volume = 1;
+
+  // 🌍 Detect language (Hindi + Marathi use Devanagari)
+  const detectLang = (text) => {
+    if (/[\u0900-\u097F]/.test(text)) return "hi-IN"; // Hindi + Marathi
+    return "en-US"; // default English
+  };
+
+  const lang = detectLang(text);
+  console.log("🌍 Detected language:", lang);
+
+  // 🎤 Find matching voice
+  let preferred = voicesRef.current.find(v =>
+    v.lang.toLowerCase().includes(lang.toLowerCase())
+  );
+
+  // fallback: short code match (hi / en)
+  if (!preferred) {
+    const short = lang.split("-")[0];
+    preferred = voicesRef.current.find(v =>
+      v.lang.toLowerCase().startsWith(short)
+    );
+  }
+
+  // final fallback → English
+  if (!preferred) {
+    preferred = voicesRef.current.find(v =>
+      v.lang.toLowerCase().includes("en")
+    );
+    console.log("⚠️ fallback to English voice");
+  }
+
+  if (preferred) {
+    console.log("✅ Using voice:", preferred.name, preferred.lang);
+    utterance.voice = preferred;
+  }
+
+  // 🔥 IMPORTANT
+  utterance.lang = lang;
+
+  utterance.onstart = () => {
+    console.log("▶️ SPEECH STARTED");
+    setIsSpeaking(true);
+    lastSpokenRef.current = text;
+  };
+
+  utterance.onend = () => {
+    console.log("⏹ SPEECH ENDED");
+    setIsSpeaking(false);
+  };
+
+  utterance.onerror = (e) => {
+    console.log("❌ SPEECH ERROR:", e);
+    setIsSpeaking(false);
+  };
+
+  window.speechSynthesis.speak(utterance);
+
+  console.log("📢 speechSynthesis.speak() called");
+
+}, []);
+// ── TTS: speak latest AI message ──
+const pendingSpeechRef = useRef(null);
+useEffect(() => {
+  if (!messages?.length) return;
+
+  const lastMsg = messages[messages.length - 1];
+
+  console.log("🧠 FULL MESSAGE:", lastMsg);
+
+  // ✅ FIX: correct field
+  if (lastMsg?.speaker !== "AI") return;
+
+  const text = lastMsg.text;
+
+  console.log("💾 storing:", text);
+
+  pendingSpeechRef.current = text;
+
+}, [messages]);
+
+// ── Flush pending speech on first user gesture ──
+const hasSpeechPermission = useRef(false);
+const flushPending = useCallback(() => {
+  console.log("🟢 flushPending called");
+
+  hasSpeechPermission.current = true;
+
+  if (pendingSpeechRef.current) {
+    console.log("🗣 Speaking pending:", pendingSpeechRef.current);
+    speak(pendingSpeechRef.current);
+    pendingSpeechRef.current = null;
+  } else {
+    console.log("⚠️ No pending speech");
+  }
+}, [speak]);
+
+// ── Speak immediately once permission is established ──
+useEffect(() => {
+  console.log("🔁 speak effect triggered");
+
+  if (!hasSpeechPermission.current) {
+    console.log("⛔ No speech permission yet");
+    return;
+  }
+
+  if (!messages?.length) return;
+
+  const lastMsg = messages[messages.length - 1];
+
+  console.log("🧠 checking message:", lastMsg);
+
+  // ✅ FIX: correct field
+  if (lastMsg?.speaker !== "AI") {
+    console.log("⛔ Not AI message");
+    return;
+  }
+
+  const text = lastMsg.text;
+
+  console.log("🆕 Candidate to speak:", text);
+
+  if (text === lastSpokenRef.current) {
+    console.log("⛔ Skipping (already spoken)");
+    return;
+  }
+
+  console.log("🚀 Calling speak()");
+  speak(text);
+
+}, [messages, speak]);
   // Timer
   useEffect(() => {
     const t = setInterval(() => setSeconds((s) => s + 1), 1000);
@@ -113,25 +332,30 @@ export default function CallPage() {
   const pad = (n) => String(n).padStart(2, "0");
   const fmt = (s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
 
-  const handleStart = () => { startRecording(); setIsRecording(true); };
-  const handleStop  = () => { stopRecording();  setIsRecording(false); };
+  const handleStart = () => {
+  flushPending();  // ← add this line
+  startRecording();
+  setIsRecording(true);
+};
 
-  // ✅ Full handleEndCall: fetch trust score first, then evaluate decision
+const handleStop = () => {
+  stopRecording();
+  setIsRecording(false);
+};
+
   const handleEndCall = async () => {
+    window.speechSynthesis?.cancel();
     try {
-      // 1. Fetch latest trust score first
       const trustRes  = await fetch(`http://localhost:8000/trust/${sessionId}`);
       const trustData = await trustRes.json();
       console.log("📊 Final Trust Before Decision:", trustData);
 
-      // 2. Send decision request
       const res    = await fetch("http://localhost:8000/decision/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId }),
       });
       const result = await res.json();
-
       navigate(`/decision/${sessionId}`, { state: result });
     } catch (err) {
       console.error("Decision error:", err);
@@ -175,30 +399,47 @@ export default function CallPage() {
       <nav
         className="flex items-center justify-between px-6 py-3 shrink-0"
         style={{
-          background: "rgba(255,255,255,0.75)",
-          backdropFilter: "blur(18px)",
-          boxShadow: "0 4px 30px rgba(37,99,235,0.08)",
-          borderBottom: "1px solid rgba(255,255,255,0.4)",
+          /* FIX: solid dark background so nav text is always visible */
+          background: "linear-gradient(90deg, #1E3A8A 0%, #1D4ED8 60%, #2563EB 100%)",
+          boxShadow: "0 4px 24px rgba(17,37,90,0.35)",
+          borderBottom: "1px solid rgba(255,255,255,0.12)",
         }}
       >
-        {/* Brand */}
+        {/* Brand + Robot */}
         <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-            style={{
-              background: "linear-gradient(135deg, #2563EB, #60A5FA)",
-              boxShadow: "0 2px 10px rgba(37,99,235,0.35)",
-            }}
-          >
-            <svg className="w-4.5 h-4.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
+          {/* Robot avatar replaces old icon */}
+          <RobotAvatar isSpeaking={isSpeaking} />
           <div>
-            <div className="text-sm font-bold leading-tight" style={{ color: "#111827" }}>
+            <div className="text-sm font-bold leading-tight" style={{ color: "#FFFFFF" }}>
               TenzorX AI Loan Officer
             </div>
-            <div className="text-xs" style={{ color: "#9CA3AF" }}>Live Interview Session</div>
+            <div className="text-xs flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.65)" }}>
+              {isSpeaking ? (
+                <>
+                  <span
+                    className="inline-flex gap-0.5 items-end"
+                    style={{ height: 12 }}
+                  >
+                    {[0, 0.15, 0.3].map((delay, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          display: "inline-block",
+                          width: 3,
+                          borderRadius: 2,
+                          background: "#60A5FA",
+                          animation: "aiWave 0.7s ease-in-out infinite",
+                          animationDelay: `${delay}s`,
+                        }}
+                      />
+                    ))}
+                  </span>
+                  AI is speaking…
+                </>
+              ) : (
+                "Live Interview Session"
+              )}
+            </div>
           </div>
         </div>
 
@@ -208,13 +449,13 @@ export default function CallPage() {
             <span
               className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
               style={{
-                background: "rgba(239,68,68,0.1)",
-                color: "#EF4444",
-                border: "1px solid rgba(239,68,68,0.25)",
-                boxShadow: "0 0 8px rgba(239,68,68,0.15)",
+                background: "rgba(239,68,68,0.18)",
+                color: "#FCA5A5",
+                border: "1px solid rgba(239,68,68,0.4)",
+                boxShadow: "0 0 8px rgba(239,68,68,0.25)",
               }}
             >
-              <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+              <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />
               RECORDING
             </span>
           )}
@@ -222,7 +463,11 @@ export default function CallPage() {
           {/* Timer */}
           <span
             className="flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg"
-            style={{ background: "rgba(37,99,235,0.05)", color: "#2563EB", border: "1px solid rgba(37,99,235,0.12)" }}
+            style={{
+              background: "rgba(255,255,255,0.12)",
+              color: "#E0EAFF",
+              border: "1px solid rgba(255,255,255,0.18)",
+            }}
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <circle cx="12" cy="12" r="10" /><path strokeLinecap="round" d="M12 6v6l4 2" />
@@ -233,7 +478,11 @@ export default function CallPage() {
           {/* Session ID */}
           <span
             className="text-xs font-mono px-2.5 py-1 rounded-md"
-            style={{ background: "#EFF6FF", color: "#60A5FA", border: "1px solid #DBEAFE" }}
+            style={{
+              background: "rgba(255,255,255,0.12)",
+              color: "#BFDBFE",
+              border: "1px solid rgba(255,255,255,0.15)",
+            }}
           >
             #{sessionId?.slice(0, 8)}
           </span>
@@ -247,7 +496,7 @@ export default function CallPage() {
             style={{
               background: "linear-gradient(135deg, #EF4444, #DC2626)",
               color: "#fff",
-              boxShadow: "0 2px 8px rgba(239,68,68,0.3)",
+              boxShadow: "0 2px 8px rgba(239,68,68,0.4)",
               transition: "all 0.15s ease",
             }}
             onMouseEnter={e => e.currentTarget.style.transform = "translateY(-1px)"}
@@ -260,24 +509,32 @@ export default function CallPage() {
           </button>
         ) : (
           <div className="flex items-center gap-2">
-            <span className="text-xs" style={{ color: "#6B7280" }}>End interview?</span>
+            <span className="text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>End interview?</span>
             <button
               onClick={handleEndCall}
               className="text-xs font-bold px-3 py-1.5 rounded-lg"
-              style={{ background: "#EF4444", color: "#fff", boxShadow: "0 2px 6px rgba(239,68,68,0.3)" }}
+              style={{ background: "#EF4444", color: "#fff", boxShadow: "0 2px 6px rgba(239,68,68,0.4)" }}
             >
               Yes, End
             </button>
             <button
               onClick={() => setShowEndConfirm(false)}
               className="text-xs font-medium px-3 py-1.5 rounded-lg"
-              style={{ background: "#F3F4F6", color: "#374151", border: "1px solid #E5E7EB" }}
+              style={{ background: "rgba(255,255,255,0.15)", color: "#E0EAFF", border: "1px solid rgba(255,255,255,0.2)" }}
             >
               Cancel
             </button>
           </div>
         )}
       </nav>
+
+      {/* wave animation keyframe */}
+      <style>{`
+        @keyframes aiWave {
+          0%, 100% { height: 4px; }
+          50%       { height: 12px; }
+        }
+      `}</style>
 
       {/* ── STATUS BAR ───────────────────────────────── */}
       <StatusBar
@@ -288,20 +545,20 @@ export default function CallPage() {
 
       {/* ── MAIN GRID ────────────────────────────────── */}
       <div
-        className="flex-1 grid p-4 gap-4 overflow-hidden"
+        className="flex-1 grid p-4 gap-4 min-h-0"
         style={{ gridTemplateColumns: "1fr 1fr 1fr" }}
       >
         {/* ── COL 1: VIDEO ─── */}
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 min-h-0">
           <ModuleCard
-            className="flex-1 relative"
+            className="flex-1 relative min-h-0"
             style={{ background: "#0F172A", border: "1px solid rgba(255,255,255,0.06)" }}
           >
             <VideoPanel videoRef={videoRef} faceData={stableFaceData} />
           </ModuleCard>
 
           {/* Controls */}
-          <div className="flex gap-2.5 justify-center">
+          <div className="flex gap-2.5 justify-center shrink-0">
             <button
               onClick={handleStart}
               disabled={isRecording}
@@ -342,7 +599,7 @@ export default function CallPage() {
         </div>
 
         {/* ── COL 2: TRANSCRIPT ─── */}
-        <ModuleCard className="flex flex-col">
+        <ModuleCard className="flex flex-col min-h-0">
           <ModuleHeader
             icon={
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -359,17 +616,22 @@ export default function CallPage() {
               </span>
             }
           />
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden min-h-0">
             <TranscriptPanel messages={messages} />
           </div>
         </ModuleCard>
 
         {/* ── COL 3: ANALYSIS ─── */}
-        <div className="flex flex-col gap-3 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
+        {/* FIX: use overflow-y-auto with min-h-0 so the column can actually scroll */}
+        <div
+          className="flex flex-col gap-3 min-h-0 overflow-y-auto pr-0.5"
+          style={{ scrollbarWidth: "none" }}
+        >
 
           {/* Trust Score Module */}
           <ModuleCard
             style={{
+              flexShrink: 0,
               boxShadow: `0 2px 16px rgba(0,0,0,0.06), 0 0 0 1px rgba(255,255,255,0.8) inset, 0 0 20px ${risk.glow}`,
             }}
           >
@@ -394,6 +656,7 @@ export default function CallPage() {
                 </span>
               }
             />
+            {/* FIX: removed overflow:hidden from card so TrustMeter gauge isn't clipped */}
             <div className="px-4 py-3">
               <TrustMeter score={trust.score} />
               {trust.explanation?.length > 0 && (
@@ -418,7 +681,7 @@ export default function CallPage() {
           </ModuleCard>
 
           {/* Extracted Data Module */}
-          <ModuleCard>
+          <ModuleCard style={{ flexShrink: 0 }}>
             <ModuleHeader
               icon={
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -459,7 +722,7 @@ export default function CallPage() {
           </ModuleCard>
 
           {/* Face Analysis Module */}
-          <ModuleCard>
+          <ModuleCard style={{ flexShrink: 0 }}>
             <ModuleHeader
               icon={
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

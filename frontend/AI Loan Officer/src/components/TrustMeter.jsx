@@ -65,7 +65,7 @@ export default function TrustMeter({ score }) {
         <div className="w-1 h-1 rounded-full animate-pulse" style={{ background: color, boxShadow: `0 0 4px rgba(${colorRgb},0.8)`, animationDelay: "0.5s" }} />
       </div>
 
-      <svg viewBox="0 0 200 110" className="w-full" style={{ maxWidth: 210 }}>
+      <svg viewBox="0 0 200 140" className="w-full" style={{ maxWidth: 210 }}>
         <defs>
           <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor={color} stopOpacity="0.6" />
@@ -159,17 +159,17 @@ export default function TrustMeter({ score }) {
         <circle cx={CX} cy={CY} r="3" fill={color} style={{ filter: `drop-shadow(0 0 3px rgba(${colorRgb},0.8))` }} />
 
         {/* Score display */}
-        <text x={CX} y={CY + 22} textAnchor="middle" fontSize="22" fontWeight="800" fill="#111827" fontFamily="system-ui">
+        <text x={CX} y={CY + 34} textAnchor="middle" fontSize="22" fontWeight="800" fill="#111827" fontFamily="system-ui">
           {display}
         </text>
-        <text x={CX} y={CY + 33} textAnchor="middle" fontSize="7.5" fill="#9CA3AF" fontFamily="system-ui" letterSpacing="1">
+        <text x={CX} y={CY + 48} textAnchor="middle" fontSize="7.5" fill="#9CA3AF" fontFamily="system-ui" letterSpacing="1">
           TRUST SCORE
         </text>
       </svg>
 
       {/* Band label with glow */}
       <div
-        className="mt-1 text-xs font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5"
+        className="mt-4 text-xs font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5"
         style={{
           background: `rgba(${colorRgb}, 0.1)`,
           color,
