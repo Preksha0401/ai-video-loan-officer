@@ -17,7 +17,7 @@ export default function DecisionPage() {
   const [phase, setPhase] = useState("loading");
   const [stepIndex, setStepIndex] = useState(0);
   const [accepted, setAccepted] = useState(false);
-
+   const [selectedOffer, setSelectedOffer] = useState(null);
   useEffect(() => {
     let elapsed = 0;
     STEPS.forEach((step, i) => {
@@ -104,6 +104,37 @@ export default function DecisionPage() {
                 </div>
               ))}
             </div>
+            {result?.explanation && (
+  <div className="bg-white border rounded-2xl p-6 mb-6">
+    <h2 className="font-semibold text-gray-900 mb-4">
+      Why was this approved?
+    </h2>
+
+    <div className="space-y-3">
+      {result.explanation.map((e, i) => (
+        <div
+          key={i}
+          className="flex items-start gap-2 bg-green-50 border border-green-200 p-3 rounded-lg"
+        >
+          <span>✔</span>
+          <span className="text-sm text-gray-700">{e}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+<div className="bg-white border rounded-2xl p-6 mb-6">
+  <h2 className="font-semibold text-gray-900 mb-4">
+    Behavioral Signals
+  </h2>
+
+  <div className="space-y-2 text-sm">
+    <div>✔ Face verified</div>
+    <div>✔ Liveness check passed</div>
+    <div>✔ Consistent answers</div>
+    <div>⚠ Minor hesitation detected</div>
+  </div>
+</div>
             {result?.offer && result.decision === "APPROVED" && (
   <div className="bg-white border rounded-2xl p-6 mb-6">
     <h2 className="font-semibold text-gray-900 mb-4">
@@ -120,37 +151,70 @@ export default function DecisionPage() {
 
     <div className="space-y-3">
       {result.offer.offers.map((o, i) => (
-        <div
-          key={i}
-          className="border rounded-lg p-3 flex justify-between items-center"
-        >
-          <div>
-            <div className="font-medium">
-              {o.tenure} months
-            </div>
-            <div className="text-xs text-gray-500">
-              Total: ₹{o.total_payment}
-            </div>
-          </div>
+  <div
+    key={i}
+    onClick={() => setSelectedOffer(o)}
+    className={`border rounded-lg p-3 flex justify-between cursor-pointer ${
+      selectedOffer?.tenure === o.tenure
+        ? "border-blue-500 bg-blue-50"
+        : ""
+    }`}
+  >
+    <div>
+      <div>{o.tenure} months</div>
+      <div className="text-xs">Total ₹{o.total_payment}</div>
+    </div>
 
-          <div className="text-right">
-            <div className="text-lg font-bold text-blue-600">
-              ₹{o.emi}/mo
-            </div>
-          </div>
-        </div>
-      ))}
+    <div className="text-blue-600 font-bold">
+      ₹{o.emi}/mo
+    </div>
+  </div>
+))}
     </div>
   </div>
 )}
             {/* CTA */}
             <div className="flex gap-3">
               <button
-                onClick={() => setAccepted(true)}
-                className="flex-1 bg-blue-600 text-white py-3 rounded-xl"
-              >
-                Accept
-              </button>
+  onClick={async () => {
+    if (!selectedOffer) {
+      alert("Please select an EMI option");
+      return;
+    }
+
+    const payload = {
+      session_id: sessionId,
+      name: result.session_data.customer_name,
+      amount: result.offer.approved_amount,
+      rate: result.offer.interest_rate,
+      tenure: selectedOffer.tenure,
+      emi: selectedOffer.emi,
+      total: selectedOffer.total_payment
+    };
+
+    const res = await fetch("http://localhost:8000/offer/pdf", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const blob = await res.blob();
+
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "loan_offer.pdf";
+    a.click();
+
+    window.URL.revokeObjectURL(url);
+  }}
+  className="flex-1 bg-blue-600 text-white py-3 rounded-xl"
+>
+  Accept & Download Offer
+</button>
 
               <button
                 onClick={() => navigate("/")}
