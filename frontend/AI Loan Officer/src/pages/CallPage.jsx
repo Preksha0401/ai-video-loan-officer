@@ -82,55 +82,82 @@ export default function CallPage() {
   const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   const videoRef = useRef(null);
+  const missedFrames = useRef(0);
   const { faceData } = useFaceAnalysis(sessionId, videoRef);
   const [stableFaceData, setStableFaceData] = useState(null);
-
   useEffect(() => {
-    if (faceData?.face_detected) setStableFaceData(faceData);
+    if (faceData?.face_detected) {
+      missedFrames.current = 0;
+      setStableFaceData(faceData);
+    } else {
+      missedFrames.current += 1;
+      if (missedFrames.current >= 2) setStableFaceData(faceData);
+    }
   }, [faceData]);
 
+  // Timer
   useEffect(() => {
     const t = setInterval(() => setSeconds((s) => s + 1), 1000);
     return () => clearInterval(t);
   }, []);
 
+  // 🔴 Flash body border when trust drops below 50
+  useEffect(() => {
+    if (trust.score < 50) {
+      document.body.classList.add("border-red-500");
+      const t = setTimeout(() => document.body.classList.remove("border-red-500"), 800);
+      return () => clearTimeout(t);
+    }
+  }, [trust.score]);
+
   const pad = (n) => String(n).padStart(2, "0");
   const fmt = (s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
 
   const handleStart = () => { startRecording(); setIsRecording(true); };
-  const handleStop = () => { stopRecording(); setIsRecording(false); };
+  const handleStop  = () => { stopRecording();  setIsRecording(false); };
 
+  // ✅ Full handleEndCall: fetch trust score first, then evaluate decision
   const handleEndCall = async () => {
     try {
-      const res = await fetch("http://localhost:8000/decision/evaluate", {
+      // 1. Fetch latest trust score first
+      const trustRes  = await fetch(`http://localhost:8000/trust/${sessionId}`);
+      const trustData = await trustRes.json();
+      console.log("📊 Final Trust Before Decision:", trustData);
+
+      // 2. Send decision request
+      const res    = await fetch("http://localhost:8000/decision/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId }),
       });
-      navigate(`/decision/${sessionId}`, { state: await res.json() });
-    } catch {
+      const result = await res.json();
+
+      navigate(`/decision/${sessionId}`, { state: result });
+    } catch (err) {
+      console.error("Decision error:", err);
       navigate(`/decision/${sessionId}`);
     }
   };
 
+  // Risk band derived from trust score
   const band = trust.score >= 75 ? "low" : trust.score >= 50 ? "medium" : "high";
   const risk = {
-    low:    { bg: "rgba(34,197,94,0.1)",   fg: "#15803D", label: "Low Risk",    glow: "rgba(34,197,94,0.2)"   },
-    medium: { bg: "rgba(245,158,11,0.1)",  fg: "#A16207", label: "Medium Risk", glow: "rgba(245,158,11,0.2)"  },
-    high:   { bg: "rgba(239,68,68,0.1)",   fg: "#B91C1C", label: "High Risk",   glow: "rgba(239,68,68,0.2)"   },
+    low:    { bg: "rgba(34,197,94,0.1)",  fg: "#15803D", label: "Low Risk",    glow: "rgba(34,197,94,0.2)"  },
+    medium: { bg: "rgba(245,158,11,0.1)", fg: "#A16207", label: "Medium Risk", glow: "rgba(245,158,11,0.2)" },
+    high:   { bg: "rgba(239,68,68,0.1)",  fg: "#B91C1C", label: "High Risk",   glow: "rgba(239,68,68,0.2)"  },
   }[band];
 
-  /* flash hooks for extracted data */
-  const incomeFlash    = useFlashOnChange(data.income);
-  const employFlash    = useFlashOnChange(data.employment);
-  const purposeFlash   = useFlashOnChange(data.loan_purpose);
-  const amountFlash    = useFlashOnChange(data.loan_amount);
+  // Flash hooks for extracted data fields
+  const incomeFlash  = useFlashOnChange(data.income);
+  const employFlash  = useFlashOnChange(data.employment);
+  const purposeFlash = useFlashOnChange(data.loan_purpose);
+  const amountFlash  = useFlashOnChange(data.loan_amount);
 
   const dataRows = [
-    { label: "Income",           val: data.income       ? `₹${data.income}/mo`    : null, flash: incomeFlash  },
-    { label: "Employment",       val: data.employment   || null,                           flash: employFlash  },
-    { label: "Loan Purpose",     val: data.loan_purpose || null,                           flash: purposeFlash },
-    { label: "Requested Amount", val: data.loan_amount  ? `₹${data.loan_amount}`  : null, flash: amountFlash  },
+    { label: "Income",           val: data.income       ? `₹${data.income}/mo`   : null, flash: incomeFlash  },
+    { label: "Employment",       val: data.employment   || null,                          flash: employFlash  },
+    { label: "Loan Purpose",     val: data.loan_purpose || null,                          flash: purposeFlash },
+    { label: "Requested Amount", val: data.loan_amount  ? `₹${data.loan_amount}` : null, flash: amountFlash  },
   ];
 
   return (
@@ -139,7 +166,6 @@ export default function CallPage() {
       style={{
         background: "linear-gradient(135deg, #F0F4FF 0%, #F5F7FB 40%, #EFF6FF 100%)",
         fontFamily: "'DM Sans', system-ui, sans-serif",
-        /* subtle dot pattern overlay */
         backgroundImage:
           "linear-gradient(135deg, #F0F4FF 0%, #F5F7FB 40%, #EFF6FF 100%), radial-gradient(circle, rgba(37,99,235,0.035) 1px, transparent 1px)",
         backgroundSize: "100% 100%, 28px 28px",
@@ -267,7 +293,10 @@ export default function CallPage() {
       >
         {/* ── COL 1: VIDEO ─── */}
         <div className="flex flex-col gap-3">
-          <ModuleCard className="flex-1 relative" style={{ background: "#0F172A", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <ModuleCard
+            className="flex-1 relative"
+            style={{ background: "#0F172A", border: "1px solid rgba(255,255,255,0.06)" }}
+          >
             <VideoPanel videoRef={videoRef} faceData={stableFaceData} />
           </ModuleCard>
 
@@ -374,8 +403,10 @@ export default function CallPage() {
                 >
                   {trust.explanation.map((e, i) => (
                     <div key={i} className="flex items-start gap-2 text-xs" style={{ color: "#6B7280" }}>
-                      <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-                        style={{ background: "rgba(37,99,235,0.08)" }}>
+                      <div
+                        className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                        style={{ background: "rgba(37,99,235,0.08)" }}
+                      >
                         <div className="w-1 h-1 rounded-full" style={{ background: "#60A5FA" }} />
                       </div>
                       {e}
@@ -489,6 +520,7 @@ export default function CallPage() {
               ))}
             </div>
           </ModuleCard>
+
         </div>
       </div>
     </div>

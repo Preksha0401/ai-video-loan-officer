@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 from services.trust_engine import TrustEngine
+from routers.session import sessions   # 🔥 ADD THIS
 
 router = APIRouter(prefix="/trust", tags=["trust"])
 
@@ -21,6 +22,15 @@ def update_trust(req: TrustRequest):
 
     score = engine.update(req.signal_type, req.value)
 
+    # ✅ SAVE INTO SESSION (CRITICAL FIX)
+    if req.session_id in sessions:
+        sessions[req.session_id]["trust_score"] = score
+    print("\n--- TRUST UPDATE ---")
+    print("Session:", req.session_id)
+    print("Signal:", req.signal_type)
+    print("Value:", req.value)
+    print("New Score:", score)
+    print("--------------------\n")
     return {
         "score": score,
         "band": engine.get_band(),
@@ -34,7 +44,11 @@ def get_trust(session_id: str):
     engine = engines.get(session_id)
 
     if not engine:
-        return {"score": 100, "band": "APPROVE", "explanation": []}
+        return {
+            "score": 100,
+            "band": "APPROVE",
+            "explanation": []
+        }
 
     return {
         "score": engine.score,

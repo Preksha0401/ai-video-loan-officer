@@ -69,7 +69,7 @@ export default function DecisionPage() {
             {/* RESULT */}
             <div className="bg-green-50 border rounded-2xl p-6 mb-6">
               <div className="text-xs font-semibold text-green-600">
-                {result?.decision || "UNKNOWN"}
+               {result?.decision || "PROCESSING"}
               </div>
 
               <h1 className="text-2xl font-bold text-gray-900">
@@ -104,7 +104,45 @@ export default function DecisionPage() {
                 </div>
               ))}
             </div>
+            {result?.offer && result.decision === "APPROVED" && (
+  <div className="bg-white border rounded-2xl p-6 mb-6">
+    <h2 className="font-semibold text-gray-900 mb-4">
+      Loan Offer
+    </h2>
 
+    <div className="text-sm text-gray-600 mb-2">
+      Approved Amount: ₹{result.offer.approved_amount}
+    </div>
+
+    <div className="text-sm text-gray-600 mb-4">
+      Interest Rate: {result.offer.interest_rate}% p.a.
+    </div>
+
+    <div className="space-y-3">
+      {result.offer.offers.map((o, i) => (
+        <div
+          key={i}
+          className="border rounded-lg p-3 flex justify-between items-center"
+        >
+          <div>
+            <div className="font-medium">
+              {o.tenure} months
+            </div>
+            <div className="text-xs text-gray-500">
+              Total: ₹{o.total_payment}
+            </div>
+          </div>
+
+          <div className="text-right">
+            <div className="text-lg font-bold text-blue-600">
+              ₹{o.emi}/mo
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
             {/* CTA */}
             <div className="flex gap-3">
               <button
