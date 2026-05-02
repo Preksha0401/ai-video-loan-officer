@@ -9,6 +9,67 @@ import useInterview from "../hooks/useInterview";
 import useSTT from "../hooks/useSTT";
 import useFaceAnalysis from "../hooks/useFaceAnalysis";
 
+/* ─── small utility: flash highlight on data change ─── */
+function useFlashOnChange(value) {
+  const [flash, setFlash] = useState(false);
+  const prev = useRef(value);
+  useEffect(() => {
+    if (prev.current !== value && value !== null) {
+      setFlash(true);
+      const t = setTimeout(() => setFlash(false), 700);
+      prev.current = value;
+      return () => clearTimeout(t);
+    }
+    prev.current = value;
+  }, [value]);
+  return flash;
+}
+
+/* ─── reusable card wrapper ─── */
+function ModuleCard({ children, className = "", style = {} }) {
+  return (
+    <div
+      className={`rounded-2xl overflow-hidden transition-all duration-200 ${className}`}
+      style={{
+        background: "#ffffff",
+        border: "1px solid rgba(229,231,235,0.8)",
+        boxShadow:
+          "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.05), 0 0 0 1px rgba(255,255,255,0.7) inset",
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ─── module header ─── */
+function ModuleHeader({ icon, title, right }) {
+  return (
+    <div
+      className="flex items-center gap-2.5 px-4 py-3 shrink-0"
+      style={{
+        borderBottom: "1px solid rgba(229,231,235,0.6)",
+        background: "linear-gradient(180deg, #FAFBFF 0%, #ffffff 100%)",
+      }}
+    >
+      <div
+        className="w-6 h-6 rounded-lg flex items-center justify-center"
+        style={{ background: "linear-gradient(135deg, #EFF6FF, #DBEAFE)" }}
+      >
+        <span style={{ color: "#2563EB" }}>{icon}</span>
+      </div>
+      <span
+        className="text-xs font-bold uppercase tracking-widest"
+        style={{ color: "#9CA3AF", letterSpacing: "0.1em" }}
+      >
+        {title}
+      </span>
+      {right && <div className="ml-auto">{right}</div>}
+    </div>
+  );
+}
+
 export default function CallPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
@@ -20,183 +81,414 @@ export default function CallPage() {
   const [seconds, setSeconds] = useState(0);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
 
-  // 🎥 SHARED VIDEO REF
   const videoRef = useRef(null);
-
-  // 🧠 FACE ANALYSIS
   const { faceData } = useFaceAnalysis(sessionId, videoRef);
+  const [stableFaceData, setStableFaceData] = useState(null);
 
-  // 🧠 Smooth face detection (no flicker)
-const [stableFaceData, setStableFaceData] = useState(null);
+  useEffect(() => {
+    if (faceData?.face_detected) setStableFaceData(faceData);
+  }, [faceData]);
 
-useEffect(() => {
-  if (faceData?.face_detected) {
-    setStableFaceData(faceData);
-  }
-}, [faceData]);
+  useEffect(() => {
+    const t = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
 
- useEffect(() => {
-  if (trust.score < 50) {
-    document.body.classList.add("border-red-500");
-    setTimeout(() => {
-      document.body.classList.remove("border-red-500");
-    }, 1000);
-  }
-}, [trust.score]);
-
-  const formatTime = (sec) => {
-    const mins = String(Math.floor(sec / 60)).padStart(2, "0");
-    const secs = String(sec % 60).padStart(2, "0");
-    return `${mins}:${secs}`;
-  };
+  const pad = (n) => String(n).padStart(2, "0");
+  const fmt = (s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
 
   const handleStart = () => { startRecording(); setIsRecording(true); };
   const handleStop = () => { stopRecording(); setIsRecording(false); };
+
   const handleEndCall = async () => {
-  try {
-    const res = await fetch("http://localhost:8000/decision/evaluate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ session_id: sessionId }),
-    });
+    try {
+      const res = await fetch("http://localhost:8000/decision/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+      navigate(`/decision/${sessionId}`, { state: await res.json() });
+    } catch {
+      navigate(`/decision/${sessionId}`);
+    }
+  };
 
-    const result = await res.json();
+  const band = trust.score >= 75 ? "low" : trust.score >= 50 ? "medium" : "high";
+  const risk = {
+    low:    { bg: "rgba(34,197,94,0.1)",   fg: "#15803D", label: "Low Risk",    glow: "rgba(34,197,94,0.2)"   },
+    medium: { bg: "rgba(245,158,11,0.1)",  fg: "#A16207", label: "Medium Risk", glow: "rgba(245,158,11,0.2)"  },
+    high:   { bg: "rgba(239,68,68,0.1)",   fg: "#B91C1C", label: "High Risk",   glow: "rgba(239,68,68,0.2)"   },
+  }[band];
 
-    // navigate with result
-    navigate(`/decision/${sessionId}`, { state: result });
+  /* flash hooks for extracted data */
+  const incomeFlash    = useFlashOnChange(data.income);
+  const employFlash    = useFlashOnChange(data.employment);
+  const purposeFlash   = useFlashOnChange(data.loan_purpose);
+  const amountFlash    = useFlashOnChange(data.loan_amount);
 
-  } catch (err) {
-    console.error("Decision error:", err);
-    alert("Failed to evaluate loan decision");
-  }
-};
+  const dataRows = [
+    { label: "Income",           val: data.income       ? `₹${data.income}/mo`    : null, flash: incomeFlash  },
+    { label: "Employment",       val: data.employment   || null,                           flash: employFlash  },
+    { label: "Loan Purpose",     val: data.loan_purpose || null,                           flash: purposeFlash },
+    { label: "Requested Amount", val: data.loan_amount  ? `₹${data.loan_amount}`  : null, flash: amountFlash  },
+  ];
 
   return (
-    <div className="h-screen flex flex-col bg-[#0f1923] text-white overflow-hidden">
-
-      {/* TOP NAV */}
-      <div className="flex items-center justify-between px-5 py-3 bg-[#141f2b] border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700" />
-          <span className="text-sm font-semibold">TenzorX AI Loan Interview</span>
-        </div>
-
-        <div className="flex items-center gap-4 text-xs text-gray-400">
-          {isRecording && (
-            <div className="flex items-center gap-1 text-red-400">
-              ● RECORDING
-            </div>
-          )}
-          ⏱ {formatTime(seconds)}
-          ID: {sessionId?.slice(0, 8)}…
-        </div>
-
-        {!showEndConfirm ? (
-  <button
-    onClick={() => setShowEndConfirm(true)}
-    className="bg-red-600 px-4 py-1.5 rounded"
-  >
-    End Call
-  </button>
-) : (
-  <div className="flex gap-2">
-    <button
-      onClick={handleEndCall}
-      className="bg-red-600 px-3 py-1 rounded"
+    <div
+      className="h-screen flex flex-col overflow-hidden"
+      style={{
+        background: "linear-gradient(135deg, #F0F4FF 0%, #F5F7FB 40%, #EFF6FF 100%)",
+        fontFamily: "'DM Sans', system-ui, sans-serif",
+        /* subtle dot pattern overlay */
+        backgroundImage:
+          "linear-gradient(135deg, #F0F4FF 0%, #F5F7FB 40%, #EFF6FF 100%), radial-gradient(circle, rgba(37,99,235,0.035) 1px, transparent 1px)",
+        backgroundSize: "100% 100%, 28px 28px",
+      }}
     >
-      Yes End
-    </button>
-    <button
-      onClick={() => setShowEndConfirm(false)}
-      className="bg-gray-600 px-3 py-1 rounded"
-    >
-      Cancel
-    </button>
-  </div>
-)}
-      </div>
-
-      <StatusBar />
-
-      {/* MAIN */}
-      <div className="flex flex-1">
-
-        {/* 🎥 VIDEO + FACE */}
-        <div className="w-[48%] p-4 flex flex-col">
-          <div className="relative flex-1 rounded-xl overflow-hidden">
-
-            <VideoPanel
-  videoRef={videoRef}
-  faceData={stableFaceData}
-/>
-            {/* FACE STATUS */}
-            <div className="absolute bottom-3 left-3 bg-black/70 px-3 py-1 rounded text-xs">
-              Face: {stableFaceData?.face_detected ? "✅" : "❌"}
-              <br />
-              Emotion: {stableFaceData?.dominant_emotion || "—"}
-            </div>
-
-            {isRecording && (
-              <div className="absolute top-3 left-3 bg-red-600 px-2 py-1 text-xs rounded animate-pulse">
-                LIVE
-              </div>
-            )}
+      {/* ── NAV ─────────────────────────────────────── */}
+      <nav
+        className="flex items-center justify-between px-6 py-3 shrink-0"
+        style={{
+          background: "rgba(255,255,255,0.75)",
+          backdropFilter: "blur(18px)",
+          boxShadow: "0 4px 30px rgba(37,99,235,0.08)",
+          borderBottom: "1px solid rgba(255,255,255,0.4)",
+        }}
+      >
+        {/* Brand */}
+        <div className="flex items-center gap-3">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{
+              background: "linear-gradient(135deg, #2563EB, #60A5FA)",
+              boxShadow: "0 2px 10px rgba(37,99,235,0.35)",
+            }}
+          >
+            <svg className="w-4.5 h-4.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </div>
+          <div>
+            <div className="text-sm font-bold leading-tight" style={{ color: "#111827" }}>
+              TenzorX AI Loan Officer
+            </div>
+            <div className="text-xs" style={{ color: "#9CA3AF" }}>Live Interview Session</div>
+          </div>
+        </div>
 
-          {/* MIC */}
-          <div className="mt-4 flex justify-center gap-3">
+        {/* Center: indicators */}
+        <div className="flex items-center gap-4">
+          {isRecording && (
+            <span
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
+              style={{
+                background: "rgba(239,68,68,0.1)",
+                color: "#EF4444",
+                border: "1px solid rgba(239,68,68,0.25)",
+                boxShadow: "0 0 8px rgba(239,68,68,0.15)",
+              }}
+            >
+              <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+              RECORDING
+            </span>
+          )}
+
+          {/* Timer */}
+          <span
+            className="flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg"
+            style={{ background: "rgba(37,99,235,0.05)", color: "#2563EB", border: "1px solid rgba(37,99,235,0.12)" }}
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <circle cx="12" cy="12" r="10" /><path strokeLinecap="round" d="M12 6v6l4 2" />
+            </svg>
+            {fmt(seconds)}
+          </span>
+
+          {/* Session ID */}
+          <span
+            className="text-xs font-mono px-2.5 py-1 rounded-md"
+            style={{ background: "#EFF6FF", color: "#60A5FA", border: "1px solid #DBEAFE" }}
+          >
+            #{sessionId?.slice(0, 8)}
+          </span>
+        </div>
+
+        {/* End Call */}
+        {!showEndConfirm ? (
+          <button
+            onClick={() => setShowEndConfirm(true)}
+            className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl"
+            style={{
+              background: "linear-gradient(135deg, #EF4444, #DC2626)",
+              color: "#fff",
+              boxShadow: "0 2px 8px rgba(239,68,68,0.3)",
+              transition: "all 0.15s ease",
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = "translateY(-1px)"}
+            onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z" />
+            </svg>
+            End Call
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="text-xs" style={{ color: "#6B7280" }}>End interview?</span>
+            <button
+              onClick={handleEndCall}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg"
+              style={{ background: "#EF4444", color: "#fff", boxShadow: "0 2px 6px rgba(239,68,68,0.3)" }}
+            >
+              Yes, End
+            </button>
+            <button
+              onClick={() => setShowEndConfirm(false)}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg"
+              style={{ background: "#F3F4F6", color: "#374151", border: "1px solid #E5E7EB" }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+      </nav>
+
+      {/* ── STATUS BAR ───────────────────────────────── */}
+      <StatusBar
+        faceDetected={stableFaceData?.face_detected}
+        livenessOk={stableFaceData?.liveness_passed}
+        isRecording={isRecording}
+      />
+
+      {/* ── MAIN GRID ────────────────────────────────── */}
+      <div
+        className="flex-1 grid p-4 gap-4 overflow-hidden"
+        style={{ gridTemplateColumns: "1fr 1fr 1fr" }}
+      >
+        {/* ── COL 1: VIDEO ─── */}
+        <div className="flex flex-col gap-3">
+          <ModuleCard className="flex-1 relative" style={{ background: "#0F172A", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <VideoPanel videoRef={videoRef} faceData={stableFaceData} />
+          </ModuleCard>
+
+          {/* Controls */}
+          <div className="flex gap-2.5 justify-center">
             <button
               onClick={handleStart}
               disabled={isRecording}
-              className="bg-emerald-600 px-5 py-2 rounded"
+              className="flex items-center gap-2 text-xs font-bold px-5 py-2.5 rounded-xl disabled:opacity-40"
+              style={{
+                background: "linear-gradient(135deg, #22C55E, #16A34A)",
+                color: "#fff",
+                boxShadow: isRecording ? "none" : "0 3px 12px rgba(34,197,94,0.35)",
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={e => { if (!isRecording) e.currentTarget.style.transform = "translateY(-1px)"; }}
+              onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
             >
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 1a4 4 0 014 4v6a4 4 0 01-8 0V5a4 4 0 014-4zm-1 17.93A8 8 0 014.07 12H6a6 6 0 0012 0h1.93A8 8 0 0113 18.93V21h2v2H9v-2h2v-2.07z" />
+              </svg>
               Start Speaking
             </button>
             <button
               onClick={handleStop}
               disabled={!isRecording}
-              className="bg-amber-600 px-5 py-2 rounded"
+              className="flex items-center gap-2 text-xs font-bold px-5 py-2.5 rounded-xl disabled:opacity-40"
+              style={{
+                background: "linear-gradient(135deg, #F59E0B, #D97706)",
+                color: "#fff",
+                boxShadow: !isRecording ? "none" : "0 3px 12px rgba(245,158,11,0.35)",
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={e => { if (isRecording) e.currentTarget.style.transform = "translateY(-1px)"; }}
+              onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
             >
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="6" y="6" width="12" height="12" rx="2" />
+              </svg>
               Stop
             </button>
           </div>
         </div>
 
-        {/* 💬 TRANSCRIPT */}
-        <div className="w-[28%] p-4 flex flex-col">
-          <div className="text-xs text-gray-500 mb-2">Transcript</div>
-          <div className="flex-1 bg-[#141f2b] rounded">
+        {/* ── COL 2: TRANSCRIPT ─── */}
+        <ModuleCard className="flex flex-col">
+          <ModuleHeader
+            icon={
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+            }
+            title="Transcript"
+            right={
+              <span
+                className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style={{ background: "#EFF6FF", color: "#2563EB", border: "1px solid #DBEAFE" }}
+              >
+                {messages.length} msg{messages.length !== 1 ? "s" : ""}
+              </span>
+            }
+          />
+          <div className="flex-1 overflow-hidden">
             <TranscriptPanel messages={messages} />
           </div>
-        </div>
+        </ModuleCard>
 
-        {/* 📊 ANALYSIS */}
-        <div className="w-[24%] p-4 flex flex-col gap-4">
+        {/* ── COL 3: ANALYSIS ─── */}
+        <div className="flex flex-col gap-3 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
 
-          <div className="bg-[#141f2b] p-4 rounded">
-           <TrustMeter score={trust.score} />
-           <div className="bg-[#141f2b] p-3 rounded text-xs">
-  {trust?.explanation.map((e, i) => (
-    <div key={i}>{e}</div>
-  ))}
-</div>
-          </div>
+          {/* Trust Score Module */}
+          <ModuleCard
+            style={{
+              boxShadow: `0 2px 16px rgba(0,0,0,0.06), 0 0 0 1px rgba(255,255,255,0.8) inset, 0 0 20px ${risk.glow}`,
+            }}
+          >
+            <ModuleHeader
+              icon={
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              }
+              title="Trust Score"
+              right={
+                <span
+                  className="text-xs font-bold px-2.5 py-1 rounded-full"
+                  style={{
+                    background: risk.bg,
+                    color: risk.fg,
+                    border: `1px solid ${risk.glow}`,
+                    boxShadow: `0 0 8px ${risk.glow}`,
+                  }}
+                >
+                  {risk.label}
+                </span>
+              }
+            />
+            <div className="px-4 py-3">
+              <TrustMeter score={trust.score} />
+              {trust.explanation?.length > 0 && (
+                <div
+                  className="mt-3 space-y-2 pt-3"
+                  style={{ borderTop: "1px solid rgba(229,231,235,0.5)" }}
+                >
+                  {trust.explanation.map((e, i) => (
+                    <div key={i} className="flex items-start gap-2 text-xs" style={{ color: "#6B7280" }}>
+                      <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                        style={{ background: "rgba(37,99,235,0.08)" }}>
+                        <div className="w-1 h-1 rounded-full" style={{ background: "#60A5FA" }} />
+                      </div>
+                      {e}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </ModuleCard>
 
-          {/* INTERVIEW DATA */}
-          <div className="bg-[#141f2b] p-4 rounded text-xs space-y-2">
-            <div>Income: {data.income || "—"}</div>
-            <div>Employment: {data.employment || "—"}</div>
-            <div>Loan Purpose: {data.loan_purpose || "—"}</div>
-            <div>Amount: {data.loan_amount || "—"}</div>
-          </div>
+          {/* Extracted Data Module */}
+          <ModuleCard>
+            <ModuleHeader
+              icon={
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              }
+              title="Extracted Data"
+            />
+            <div className="px-4 py-2">
+              {dataRows.map(({ label, val, flash }) => (
+                <div
+                  key={label}
+                  className="flex justify-between items-center py-2.5 transition-all duration-300"
+                  style={{
+                    borderBottom: "1px solid rgba(229,231,235,0.4)",
+                    background: flash ? "rgba(37,99,235,0.04)" : "transparent",
+                    borderRadius: flash ? "8px" : "0",
+                    padding: flash ? "10px 8px" : undefined,
+                    margin: flash ? "0 -8px" : undefined,
+                  }}
+                >
+                  <span className="text-xs flex items-center gap-1.5" style={{ color: "#9CA3AF" }}>
+                    <div className="w-1 h-1 rounded-full" style={{ background: "#394e79" }} />
+                    {label}
+                  </span>
+                  <span
+                    className="text-xs font-bold transition-all duration-300"
+                    style={{
+                      color: val ? "#111827" : "#2563EB",
+                      transform: flash ? "scale(1.05)" : "scale(1)",
+                    }}
+                  >
+                    {val || "—"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </ModuleCard>
 
-          {/* FACE DEBUG */}
-          <pre className="text-xs bg-[#141f2b] p-3 rounded overflow-auto max-h-40">
-            {JSON.stringify(stableFaceData, null, 2)}
-          </pre>
-
+          {/* Face Analysis Module */}
+          <ModuleCard>
+            <ModuleHeader
+              icon={
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              }
+              title="Face Analysis"
+              right={
+                stableFaceData?.face_detected ? (
+                  <div
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
+                    style={{ background: "rgba(34,197,94,0.1)", color: "#22C55E", border: "1px solid rgba(34,197,94,0.2)" }}
+                  >
+                    <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
+                    Live
+                  </div>
+                ) : null
+              }
+            />
+            <div className="px-4 py-3 grid grid-cols-3 gap-2">
+              {[
+                {
+                  label: "Detected",
+                  val: stableFaceData?.face_detected ? "✓" : "—",
+                  color: stableFaceData?.face_detected ? "#22C55E" : "#9CA3AF",
+                  bg: stableFaceData?.face_detected ? "rgba(34,197,94,0.08)" : "#F9FAFB",
+                  glow: stableFaceData?.face_detected ? "0 0 12px rgba(34,197,94,0.15)" : "none",
+                },
+                {
+                  label: "Emotion",
+                  val: stableFaceData?.dominant_emotion || "—",
+                  color: "#002f96",
+                  bg: "rgba(37,99,235,0.05)",
+                  glow: "none",
+                },
+                {
+                  label: "Confidence",
+                  val: stableFaceData?.confidence
+                    ? `${Math.round(stableFaceData.confidence * 100)}%`
+                    : "—",
+                  color: "#111827",
+                  bg: "#F9FAFB",
+                  glow: "none",
+                },
+              ].map(({ label, val, color, bg, glow }) => (
+                <div
+                  key={label}
+                  className="rounded-xl py-3 px-2 text-center"
+                  style={{
+                    background: bg,
+                    border: "1px solid rgba(229,231,235,0.5)",
+                    boxShadow: glow,
+                  }}
+                >
+                  <div className="text-sm font-bold" style={{ color }}>{val}</div>
+                  <div className="text-xs mt-1" style={{ color: "#9CA3AF", fontSize: "0.65rem" }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </ModuleCard>
         </div>
       </div>
     </div>
