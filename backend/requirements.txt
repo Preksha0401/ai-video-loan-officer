@@ -4,3 +4,5 @@ pydantic
 python-multipart
 requests
 python-dotenv
+fastapi-mail
+python-dotenv
