@@ -172,58 +172,67 @@ export default function DecisionPage() {
 ))}
     </div>
   </div>
-)}
-            {/* CTA */}
-            <div className="flex gap-3">
-              <button
-  onClick={async () => {
-    if (!selectedOffer) {
-      alert("Please select an EMI option");
-      return;
+)}{/* CTA */}
+<div className="flex flex-col gap-3">
+  <div className="flex gap-3">
+    <button
+      onClick={async () => {
+        if (!selectedOffer) {
+          alert("Please select an EMI option");
+          return;
+        }
+
+        const payload = {
+          session_id: sessionId,
+          name: result.session_data.customer_name,
+          amount: result.offer.approved_amount,
+          rate: result.offer.interest_rate,
+          tenure: selectedOffer.tenure,
+          emi: selectedOffer.emi,
+          total: selectedOffer.total_payment
+        };
+
+        const res = await fetch("http://localhost:8000/offer/pdf", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "loan_offer.pdf";
+        a.click();
+
+        window.URL.revokeObjectURL(url);
+      }}
+      className="flex-1 bg-blue-600 text-white py-3 rounded-xl"
+    >
+      Accept & Download Offer
+    </button>
+
+    <button
+      onClick={() => navigate("/")}
+      className="px-6 py-3 border rounded-xl"
+    >
+      Exit
+    </button>
+  </div>
+
+  {/* NEW BUTTON */}
+  <button
+    onClick={() =>
+      window.open("https://poonawallafincorp.com/", "_blank")
     }
-
-    const payload = {
-      session_id: sessionId,
-      name: result.session_data.customer_name,
-      amount: result.offer.approved_amount,
-      rate: result.offer.interest_rate,
-      tenure: selectedOffer.tenure,
-      emi: selectedOffer.emi,
-      total: selectedOffer.total_payment
-    };
-
-    const res = await fetch("http://localhost:8000/offer/pdf", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const blob = await res.blob();
-
-    const url = window.URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "loan_offer.pdf";
-    a.click();
-
-    window.URL.revokeObjectURL(url);
-  }}
-  className="flex-1 bg-blue-600 text-white py-3 rounded-xl"
->
-  Accept & Download Offer
-</button>
-
-              <button
-                onClick={() => navigate("/")}
-                className="px-6 py-3 border rounded-xl"
-              >
-                Exit
-              </button>
-            </div>
-
+    className="w-full border border-blue-600 text-blue-600 py-3 rounded-xl hover:bg-blue-50 transition"
+  >
+    Explore More Loan Offers →
+  </button>
+</div>
           </div>
         )}
       </div>
